@@ -936,7 +936,6 @@ const COLORS_20=['#D93025','#E8710A','#F5C518','#2E9E4F','#1A7A3C','#0B8FBF','#1
 const REIMB_CAT_ID='reimburse';
 
 const DEFAULT_CATS=[
-  {id:'A',name:'A',color:'#D93025',budget:0,threshold:80},
   {id:'sub',name:'Kirim Uang Bulanan Ortu',color:'#0B8FBF',budget:0,threshold:80},
   {id:'food',name:'Tukar Uang Currency',color:'#E8710A',budget:0,threshold:80},
   {id:'friends',name:'Beli Saham',color:'#2E9E4F',budget:0,threshold:80},
@@ -1408,13 +1407,7 @@ function renderMonthlySummary(){
     <div style="font-size:11px;opacity:0.6;margin-top:5px;font-family:var(--mono)">${Math.round((tSpent/tBudget)*100)}% of ${fmtFull(tBudget)} budget</div>`:''}
   </div>`;
 
-  // Stat row
-  html += `<div style="margin-bottom:14px">
-    <div style="background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:14px">
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.08em">Reimb. Pending</div>
-      <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--blue)">${tPending>0?fmtFull(tPending):'—'}</div>
-    </div>
-  </div>`;
+
 
   // Top category
   if(topCat){
@@ -3524,5 +3517,6 @@ loadDriveState();
 </script>
 </body>
 </html>
+
 
 
