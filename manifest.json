@@ -1,0 +1,24 @@
+{
+  "name": "AsekXpenses",
+  "short_name": "AsekXpenses",
+  "description": "Personal Finance Tracker",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f1117",
+  "theme_color": "#0f1117",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "https://i.ibb.co/VXq0RWQ/ur-pin-large-front-square-600x600-removebg-preview.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://i.ibb.co/VXq0RWQ/ur-pin-large-front-square-600x600-removebg-preview.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
