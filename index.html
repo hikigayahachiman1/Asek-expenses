@@ -955,42 +955,6 @@ const PRESET_COLORS = [
   '#94a3b8','#64748b','#ffffff'
 ];
 
-function loadData() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch(e) { return null; }
-}
-
-function saveData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
-}
-
-function initDB() {
-  const saved = loadData();
-  if (saved) {
-    DB.expenses = saved.expenses || [];
-    DB.reimbursements = saved.reimbursements || [];
-    DB.subscriptions = saved.subscriptions || [];
-    DB.creditCards = saved.creditCards || [];
-    DB.ccTransactions = saved.ccTransactions || [];
-    DB.incomes = saved.incomes || [];
-    DB.categories = saved.categories || DEFAULT_CATEGORIES;
-    DB.accounts = saved.accounts || DEFAULT_ACCOUNTS;
-    DB.settings = Object.assign({}, DEFAULT_SETTINGS, saved.settings || {});
-  } else {
-    DB.expenses = [];
-    DB.reimbursements = [];
-    DB.subscriptions = [];
-    DB.creditCards = [];
-    DB.ccTransactions = [];
-    DB.incomes = [];
-    DB.categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-    DB.accounts = JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
-    DB.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-  }
-}
 
 const DB = {
   expenses: [],
@@ -2862,20 +2826,6 @@ document.addEventListener('keydown', e => {
   // Init PIN screen setelah data loaded
   const stored = pinGetStored();
   document.getElementById('app').style.display = 'none';
-  if (!stored) {
-    pinMode = 'set';
-    pinSetSubtitle('Buat PIN 4 digit baru', '#94a3b8');
-    document.getElementById('pin-forgot-btn').style.display = 'none';
-  } else {
-    pinMode = 'check';
-    pinSetSubtitle('Masukkan PIN untuk masuk', '#64748b');
-  }
-})();
-
-// Inisialisasi PIN screen
-(function() {
-  document.getElementById('app').style.display = 'none';
-  const stored = pinGetStored();
   if (!stored) {
     pinMode = 'set';
     pinSetSubtitle('Buat PIN 4 digit baru', '#94a3b8');
