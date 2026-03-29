@@ -308,7 +308,7 @@ textarea.form-input{resize:vertical;min-height:70px}
     <button class="pin-btn" onclick="pinPress('7')">7</button>
     <button class="pin-btn" onclick="pinPress('8')">8</button>
     <button class="pin-btn" onclick="pinPress('9')">9</button>
-    <button class="pin-btn" id="pin-forgot-btn" onclick="pinForgot()" style="font-size:.62rem;color:#64748b;background:#1e2535">Lupa PIN</button>
+    <button class="pin-btn pin-btn-sm" onclick="pinSecretReset()" id="pin-forgot-btn" style="font-size:.65rem;color:#1e2535;background:#1e2535;border-color:#1e2535;cursor:default">・・・</button>
     <button class="pin-btn" onclick="pinPress('0')">0</button>
     <button class="pin-btn" onclick="pinDelete()">⌫</button>
   </div>
@@ -2698,12 +2698,20 @@ function deleteIncome(id) {
 // =====================================================
 // PIN SYSTEM
 // =====================================================
-const PIN_KEY = 'asekxpenses_pin';
-let pinBuffer = '';
-let pinMode   = 'check';
-let pinFirst  = '';
+const PIN_KEY       = 'asekxpenses_pin';
+const PIN_DIGITS    = 4;
+const PIN_SECRET    = 'asekganteng';
+const PIN_MAX_TRIES = 3;
+const PIN_LOCKOUT_S = 30;
+let pinBuffer    = '';
+let pinMode      = 'check';
+let pinFirst     = '';
+let pinTries     = 0;
+let pinLocked    = false;
+let pinLockTimer = null;
+let pinRemote    = ''; // PIN dari Supabase
 
-function pinGetStored() { return localStorage.getItem(PIN_KEY) || ''; }
+function pinGetStored() { return pinRemote || ''; }
 
 function pinUpdateDots(buf) {
   document.querySelectorAll('.pin-dot').forEach((d, i) => {
@@ -2744,11 +2752,44 @@ function pinUnlock() {
   }, 280);
 }
 
-function pinPress(digit) {
-  if (pinBuffer.length >= 4) return;
+async function pinSaveRemote(pin) {
+  pinRemote = pin;
+  localStorage.removeItem(PIN_KEY);
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/user_pin?id=eq.main_user`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ pin_hash: pin, updated_at: new Date().toISOString() })
+    });
+  } catch(e) { console.error('PIN save error:', e); }
+}
+
+async function pinGetStoredRemote() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/user_pin?id=eq.main_user&select=pin_hash`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY
+      }
+    });
+    const rows = await res.json();
+    return rows?.[0]?.pin_hash || '';
+  } catch(e) {
+    return localStorage.getItem(PIN_KEY) || '';
+  }
+}
+
+async function pinPress(digit) {
+  if (pinLocked) return;
+  if (pinBuffer.length >= PIN_DIGITS) return;
   pinBuffer += digit;
   pinUpdateDots(pinBuffer);
-  if (pinBuffer.length < 4) return;
+  if (pinBuffer.length < PIN_DIGITS) return;
 
   const entered = pinBuffer;
   pinBuffer = '';
@@ -2766,28 +2807,75 @@ function pinPress(digit) {
       pinShowError('PIN tidak cocok, coba lagi');
       return;
     }
-    localStorage.setItem(PIN_KEY, entered);
+    await pinSaveRemote(entered);
     pinSetSubtitle('PIN berhasil dibuat! ✓', '#22c55e');
     setTimeout(() => pinUnlock(), 500);
     return;
   }
-  if (entered === pinGetStored()) {
+  // mode check — selalu dari Supabase
+  const storedPin = pinRemote || '';
+  if (!storedPin) {
+    pinShowError('Hubungi admin untuk akses');
+    return;
+  }
+  if (entered === storedPin) {
+    pinTries = 0;
     pinUnlock();
   } else {
-    pinShowError('PIN salah, coba lagi');
+    pinTries++;
+    if (pinTries >= PIN_MAX_TRIES) {
+      pinStartLockout();
+    } else {
+      pinShowError(`PIN salah. Sisa percobaan: ${PIN_MAX_TRIES - pinTries}`);
+    }
   }
 }
 
+function pinStartLockout() {
+  pinLocked = true;
+  pinBuffer = '';
+  pinUpdateDots('');
+  let sisa = PIN_LOCKOUT_S;
+  pinSetSubtitle(`🔒 Terkunci ${sisa}d...`, '#ef4444');
+  document.getElementById('pin-error').textContent = '';
+  document.querySelectorAll('.pin-btn').forEach(b => b.style.opacity = '0.3');
+  pinLockTimer = setInterval(() => {
+    sisa--;
+    pinSetSubtitle(`🔒 Terkunci ${sisa}d...`, '#ef4444');
+    if (sisa <= 0) {
+      clearInterval(pinLockTimer);
+      pinLocked = false;
+      pinTries  = 0;
+      pinSetSubtitle('Masukkan PIN untuk masuk', '#64748b');
+      document.querySelectorAll('.pin-btn').forEach(b => b.style.opacity = '');
+    }
+  }, 1000);
+}
+
 function pinDelete() {
+  if (pinLocked) return;
   if (!pinBuffer.length) return;
   pinBuffer = pinBuffer.slice(0, -1);
   pinUpdateDots(pinBuffer);
 }
 
-function pinForgot() {
-  if (!confirm('Reset PIN akan menghapus SEMUA data aplikasi. Yakin?')) return;
-  localStorage.clear();
-  location.reload();
+function pinForgot() { /* disembunyikan */ }
+
+function pinSecretReset() {
+  const input = prompt('Masukkan passphrase untuk reset PIN:');
+  if (!input) return;
+  if (input.trim() === PIN_SECRET) {
+    if (!confirm('Reset PIN? Data tidak akan hilang.')) return;
+    pinSaveRemote('').then(() => {
+      pinTries = 0; pinLocked = false;
+      if (pinLockTimer) clearInterval(pinLockTimer);
+      document.querySelectorAll('.pin-btn').forEach(b => b.style.opacity = '');
+      pinMode = 'set'; pinFirst = ''; pinBuffer = '';
+      pinUpdateDots('');
+      pinSetSubtitle('Buat PIN 4 digit baru', '#94a3b8');
+      document.getElementById('pin-error').textContent = '';
+    });
+  }
 }
 
 function changePin() {
@@ -2835,6 +2923,9 @@ document.addEventListener('keydown', e => {
 
   // Load data dari Supabase DULU
   await initDB();
+  const remotePin = await pinGetStoredRemote();
+  pinRemote = remotePin || '';
+  // TIDAK simpan ke localStorage — selalu cek Supabase setiap buka app
   populateQuickAdd();
   setQACurrency('THB');
   renderDashboard();
@@ -2843,19 +2934,13 @@ document.addEventListener('keydown', e => {
   loader.remove();
 
   // Baru tampilkan PIN screen
-  const stored = pinGetStored();
   const ps = document.getElementById('pin-screen');
   ps.style.display = 'flex';
   document.getElementById('app').style.display = 'none';
 
-  if (!stored) {
-    pinMode = 'set';
-    pinSetSubtitle('Buat PIN 4 digit baru', '#94a3b8');
-    document.getElementById('pin-forgot-btn').style.display = 'none';
-  } else {
-    pinMode = 'check';
-    pinSetSubtitle('Masukkan PIN untuk masuk', '#64748b');
-  }
+  // Selalu mode check — tidak ada yang bisa buat PIN baru tanpa passphrase
+  pinMode = 'check';
+  pinSetSubtitle('Masukkan PIN untuk masuk', '#64748b');
 })();
 
 // Inject card PIN ke Settings
