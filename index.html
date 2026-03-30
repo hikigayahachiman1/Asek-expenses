@@ -1020,6 +1020,11 @@ async function initDB() {
     DB.incomes        = [];
     DB.banks          = [];
     DB.bankMutasi     = [];
+    DB.categories     = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+    DB.accounts       = JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
+    DB.settings       = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  }
+}
 
 const DEFAULT_CATEGORIES = [
   {id:'cat_food',name:'Food',color:'#22c55e',budgetTHB:0,budgetIDR:0},
@@ -3080,10 +3085,6 @@ function pinUnlock() {
     setTimeout(() => {
       ps.style.display = 'none';
       document.getElementById('app').style.display = '';
-      // Render app setelah PIN benar
-      populateQuickAdd();
-      setQACurrency('THB');
-      renderDashboard();
       setTimeout(() => document.getElementById('qa-amount').focus(), 100);
     }, 250);
   }, 280);
@@ -3152,9 +3153,7 @@ async function pinPress(digit) {
   // mode check — selalu dari Supabase
   const storedPin = pinRemote || '';
   if (!storedPin) {
-    // Belum ada PIN tersimpan, izinkan buat baru
-    pinFirst = entered; pinMode = 'confirm';
-    pinSetSubtitle('Konfirmasi PIN Anda', '#94a3b8');
+    pinShowError('Hubungi admin untuk akses');
     return;
   }
   if (entered === storedPin) {
@@ -3245,12 +3244,14 @@ document.addEventListener('keydown', e => {
 // INIT
 // =====================================================
 (async function() {
+  // Tampilkan loading dulu
   document.getElementById('pin-screen').style.display = 'none';
   document.getElementById('app').style.display = 'none';
 
+  // Loading indicator sementara
   const loader = document.createElement('div');
-  loader.id = 'main-loader';
-  loader.style.cssText = 'position:fixed;inset:0;background:#0f1117;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999999;';
+  loader.id = 'loading-screen';
+  loader.style.cssText = 'position:fixed;inset:0;background:#0f1117;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99998;';
   loader.innerHTML = `
     <img src="https://i.ibb.co/VXq0RWQ/ur-pin-large-front-square-600x600-removebg-preview.png" width="64" height="64" style="border-radius:16px;margin-bottom:16px;opacity:.8">
     <div style="color:#6366f1;font-size:.9rem;font-weight:600;letter-spacing:.5px">Memuat data...</div>
@@ -3258,35 +3259,26 @@ document.addEventListener('keydown', e => {
   `;
   document.body.appendChild(loader);
 
-  try {
-    await initDB();
-    const remotePin = await pinGetStoredRemote();
-    pinRemote = remotePin || '';
-  } catch(e) {
-    console.error('Init error:', e);
-  }
+  // Load data dari Supabase DULU
+  await initDB();
+  const remotePin = await pinGetStoredRemote();
+  pinRemote = remotePin || '';
+  // TIDAK simpan ke localStorage — selalu cek Supabase setiap buka app
+  populateQuickAdd();
+  setQACurrency('THB');
+  renderDashboard();
 
-  // Hapus loader — SELALU hapus sebelum tampilkan PIN
-  const loaderEl = document.getElementById('main-loader');
-  if (loaderEl) loaderEl.remove();
+  // Hapus loading screen
+  loader.remove();
 
-  // Tampilkan PIN screen
+  // Baru tampilkan PIN screen
   const ps = document.getElementById('pin-screen');
   ps.style.display = 'flex';
-  ps.style.opacity = '0';
-  setTimeout(() => { ps.style.transition = 'opacity .2s ease'; ps.style.opacity = '1'; }, 10);
   document.getElementById('app').style.display = 'none';
 
-  if (!pinRemote) {
-    // Belum ada PIN — izinkan buat PIN baru
-    pinMode = 'set';
-    pinSetSubtitle('Buat PIN 4 digit baru', '#94a3b8');
-    document.getElementById('pin-forgot-btn').style.display = 'none';
-  } else {
-    // Sudah ada PIN — mode check
-    pinMode = 'check';
-    pinSetSubtitle('Masukkan PIN untuk masuk', '#64748b');
-  }
+  // Selalu mode check — tidak ada yang bisa buat PIN baru tanpa passphrase
+  pinMode = 'check';
+  pinSetSubtitle('Masukkan PIN untuk masuk', '#64748b');
 })();
 
 // Inject card PIN ke Settings
